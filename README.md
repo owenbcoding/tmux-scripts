@@ -1,4 +1,18 @@
-# split4.sh
+# tmux-scripts
+
+Two small bash scripts for tmux:
+
+| Script | What it does |
+| ------ | ------------ |
+| [`split4.sh`](split4.sh) | Turns the current window into a 2×2 grid of four panes. |
+| [`devdeck.sh`](devdeck.sh) | Builds a whole four-zone developer workspace — editor, dev server, logs, git — as its own session. |
+
+Each is a single file. There is no install step, no config, and no dependencies
+beyond bash and tmux.
+
+---
+
+## split4.sh
 
 A tiny bash script that turns one tmux pane into a 2×2 grid of four panes, with
 the cursor left in the top-left one.
@@ -15,16 +29,15 @@ the cursor left in the top-left one.
 └───────────┴───────────┘
 ```
 
-The whole project is one file: [`split4.sh`](split4.sh). There is no install
-step, no config, and no dependencies beyond bash and tmux.
+The whole script is one file: [`split4.sh`](split4.sh).
 
-## Requirements
+### Requirements
 
 - `tmux` (3.0 or newer — the script targets panes by name with `{top-right}` /
   `{top-left}`).
 - bash.
 
-## Usage
+### Usage
 
 Run it from a shell **inside** a tmux session:
 
@@ -54,7 +67,7 @@ Bind it to a key in `~/.tmux.conf` and reload the config:
 bind 4 run-shell "/full/path/to/split4.sh"
 ```
 
-## How it works
+### How it works
 
 tmux has no single "make a 2×2 grid" command, so the script builds it in steps.
 Each `split-window` makes the new pane active: `-h` splits side by side and `-v`
@@ -73,7 +86,7 @@ Step 5 is doing the real work: steps 1–4 only create four panes, and
 `select-layout tiled` is what turns them into a clean grid. Step 6 just decides
 where you start typing.
 
-## Caveats
+### Caveats
 
 - **Start from a fresh window.** The script assumes exactly one pane; run it in a
   window that already has panes and you'll get more than four and a lopsided
@@ -85,7 +98,7 @@ where you start typing.
 - **Exit status** is `1` outside tmux, otherwise the status of the last tmux
   command.
 
-## Customizing
+### Customizing
 
 - Replace `tiled` with `even-horizontal`, `even-vertical`, or `main-vertical` for
   a different arrangement of the same four panes.
@@ -94,7 +107,7 @@ where you start typing.
 - Add more `split-window` calls before `select-layout` for six or more panes;
   `tiled` keeps balancing the grid.
 
-## Troubleshooting
+### Troubleshooting
 
 | Symptom | Fix |
 | ------- | --- |
@@ -103,3 +116,92 @@ where you start typing.
 | `unknown pane` / `can't find pane` | tmux is older than 3.0; upgrade it, or replace `{top-right}` / `{top-left}` with pane indexes (`-t 1`, `-t 0`). |
 | `Permission denied` | `chmod +x split4.sh`. |
 | Layout looks lopsided | You ran it in a window that already had panes; kill them down to one and rerun. |
+
+---
+
+## devdeck.sh
+
+Builds and attaches to its own session, `devdeck`, laid out for a full edit /
+run / watch loop:
+
+```
+┌───────────────────────┬──────────────┐
+│                       │  dev server  │
+│                       ├──────────────┤
+│       EDITOR          │     logs     │
+│   (nvim/vim/bash)     ├──────────────┤
+│                       │     git      │
+└───────────────────────┴──────────────┘
+```
+
+The editor takes the left 65% of the window and the right 35% is three equal
+rows. Every pane gets a title, and the border above it shows
+`index ● title`, so you can see at a glance which pane is which.
+
+### Usage
+
+```bash
+./devdeck.sh              # use the current directory
+./devdeck.sh ~/code/app   # open a specific project
+```
+
+The directory is resolved to an absolute path before tmux sees it, and the
+script exits with status `1` (printing `devdeck: no such directory: …`) if it
+doesn't exist.
+
+The session is created detached, sized to the terminal you launched from, and
+then attached. If a `devdeck` session already exists the script just goes to it
+— switching the current client when you're already inside tmux instead of trying
+to nest one — and ignores the directory argument.
+
+### Requirements
+
+- tmux 3.0 or newer (`pane-border-status`, pane titles, `switch-client`).
+- bash, plus `nvim` or `vim` for the main pane — without either it falls back to
+  bash.
+
+### How it works
+
+| Step | Command | Result |
+| ---- | ------- | ------ |
+| 1 | `new-session -d … -x COLS -y LINES` | detached session at your terminal's size, main pane is the editor |
+| 2 | `split-window -h -p 35` | right column, 35% wide |
+| 3 | `split-window -v -p 66` | dev server on top, 66% left below it |
+| 4 | `split-window -v -p 50` | that remainder becomes the logs and git panes |
+| 5 | `resize-pane -x` (65% of window) | pins the editor to the left 65% |
+| 6 | `select-pane -T` + `set-option -w` | pane titles and border styling |
+| 7 | `attach` / `switch-client` | hands you the session |
+
+Two details matter for the layout to land where the diagram says:
+
+- **The session is created at your terminal's size.** Detached sessions default
+  to 80×24, so percentage splits computed from one size and applied to another
+  produce lopsided panes once you attach.
+- **Panes are tracked by id** (`-P -F '#{pane_id}'`), not by index, so a
+  `pane-base-index` or `base-index` setting in your tmux config can't move the
+  targets out from under the script.
+
+### Notes
+
+- The right-hand panes print a one-line hint; they're placeholders for your own
+  start command, `tail -f`, and so on.
+- Styling (mouse mode, top status bar, borders, yellow accents) is applied to
+  this session and window only — your other sessions are untouched.
+- The editor is chosen at launch. Panes you open later get whatever your shell
+  starts.
+- tmux shares space added by a terminal resize evenly between panes rather than
+  scaling the 65/35 split, so a much wider window drifts from the diagram; drag
+  the border to put it back.
+- Re-running attaches to the existing session, so it won't re-tile a layout you
+  have since rearranged.
+
+### Troubleshooting
+
+| Symptom | Fix |
+| ------- | --- |
+| `devdeck: no such directory` | Pass a path that exists; it's resolved before tmux starts. |
+| `command not found: tmux` | Install tmux, or check it's on the `PATH` of the shell running the script. |
+| Borders show `0 ● hostname` | tmux older than 3.0, where `select-pane -T` doesn't set titles; upgrade, or drop the `pane-border-status` lines. |
+| `●` or the emoji render as boxes | Use a UTF-8 terminal and a font that has those glyphs. |
+| Right column feels cramped | It's fixed at 35%; widen the terminal, or drag the border with the mouse (mouse mode is on). |
+| `Permission denied` | `chmod +x devdeck.sh`. |
