@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Runs the sibling devdeck.sh so a clone works in place, no install needed.
+# Put this directory on PATH (see README) and bare `devdeck` resolves here.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$here/devdeck.sh" "$@"

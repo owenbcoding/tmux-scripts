@@ -21,6 +21,21 @@ reads a config file.
 After `git pull` on another machine, re-run `./install.sh` and both commands
 work the same there.
 
+### Run from the clone (no install)
+
+The repo also ships `devdeck` and `split4` wrappers that exec the sibling
+scripts, so a clone can be used in place. Put the clone on your `PATH` once and
+nothing else is needed:
+
+```bash
+export PATH="/path/to/tmux-scripts:$PATH"   # add to ~/.bashrc or ~/.zshrc to keep it
+cd ~/code/app && devdeck
+```
+
+Same commands, no files copied into `~/.local/bin`: a `git pull` is enough to
+pick up changes, and there's no verification step. (`./devdeck.sh` also works
+directly from inside the clone if you'd rather not touch `PATH` at all.)
+
 ---
 
 ## split4.sh

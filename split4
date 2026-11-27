@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Runs the sibling split4.sh so a clone works in place, no install needed.
+# Put this directory on PATH (see README) and bare `split4` resolves here.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$here/split4.sh" "$@"
