@@ -13,10 +13,16 @@ reads a config file.
 ### Install
 
 ```bash
-./install.sh              # install devdeck + split4 to ~/.local/bin, then verify each builds 4 panes
-./install.sh --no-verify  # install only
-./install.sh --uninstall  # remove them again
+./install.sh                 # install devdeck + split4 to ~/.local/bin and the vim theme, then verify each builds 4 panes
+./install.sh --no-verify     # install only
+./install.sh --no-vim-theme  # install the commands but leave ~/.vimrc alone
+./install.sh --uninstall     # remove them again
 ```
+
+The same run also installs the `hacker` colorscheme from
+[`vim-theme/`](vim-theme/), so the editor pane comes up green-on-black by
+default on a fresh clone. The theme installer backs up `~/.vimrc` and only
+appends its block when `colorscheme hacker` is missing, so it is safe to re-run.
 
 After `git pull` on another machine, re-run `./install.sh` and both commands
 work the same there.
@@ -142,6 +148,23 @@ where you start typing.
 | `unknown pane` / `can't find pane` | tmux is older than 3.0; upgrade it, or replace `{top-right}` / `{top-left}` with pane indexes (`-t 1`, `-t 0`). |
 | `Permission denied` | `chmod +x split4.sh`. |
 | Layout looks lopsided | You ran it in a window that already had panes; kill them down to one and rerun. |
+
+---
+
+## vim-theme
+
+The custom green-on-black CRT colorscheme (`hacker`, not tokyonight) used in
+the editor pane, kept in the repo so a clone carries it to every machine:
+
+| File | Purpose |
+| ---- | ------- |
+| [`hacker.vim`](vim-theme/hacker.vim) | the colorscheme, installed to `~/.vim/colors/hacker.vim` |
+| [`vimrc`](vim-theme/vimrc) | full reference `~/.vimrc` |
+| [`install.sh`](vim-theme/install.sh) | safe installer: copies the theme, backs up `~/.vimrc`, appends only if needed |
+
+`./install.sh` runs it for you; to do just the theme, run
+`bash vim-theme/install.sh`. It copies from the clone, so no network access or
+GitHub token is involved.
 
 ---
 

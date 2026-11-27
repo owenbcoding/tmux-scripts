@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# install.sh — install devdeck + split4 to ~/.local/bin and verify each one
-# actually builds working tmux panes.
+# install.sh — install devdeck + split4 to ~/.local/bin and the hacker vim
+# theme from vim-theme/, then verify the scripts build working tmux panes.
 #
 # Usage:
-#   ./install.sh              # install + verify
-#   ./install.sh --no-verify  # install only
-#   ./install.sh --uninstall  # remove installed binaries
+#   ./install.sh                 # install + verify
+#   ./install.sh --no-verify     # install only
+#   ./install.sh --no-vim-theme  # skip the vim colorscheme
+#   ./install.sh --uninstall     # remove installed binaries
 #
 # After `git pull` on another machine, just re-run `./install.sh` and both
 # commands work the same there.
@@ -15,13 +16,17 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${PREFIX:-$HOME/.local/bin}"
 VERIFY=1
+VIM_THEME=1
 
 for arg in "$@"; do
     case "$arg" in
         --no-verify) VERIFY=0 ;;
+        --no-vim-theme) VIM_THEME=0 ;;
         --uninstall)
             rm -f "$PREFIX/devdeck" "$PREFIX/split4"
+            rm -f "$HOME/.vim/colors/hacker.vim"
             echo "uninstalled devdeck + split4 from $PREFIX"
+            echo "removed ~/.vim/colors/hacker.vim (the colorscheme line in ~/.vimrc stays)"
             exit 0
             ;;
         -h|--help)
@@ -48,6 +53,16 @@ mkdir -p "$PREFIX"
 install -m 755 "$REPO_DIR/devdeck.sh" "$PREFIX/devdeck"
 install -m 755 "$REPO_DIR/split4.sh" "$PREFIX/split4"
 echo "installed: $PREFIX/devdeck  $PREFIX/split4"
+
+# ── Vim theme ──────────────────────────────────────────────────
+# vim-theme/ ships with the clone, so a fresh machine sets the editor's default
+# colorscheme without fetching anything. The installer backs up ~/.vimrc and
+# only appends its block when `colorscheme hacker` is missing.
+if [ "$VIM_THEME" -eq 1 ]; then
+    bash "$REPO_DIR/vim-theme/install.sh"
+else
+    echo "skip vim theme (--no-vim-theme)"
+fi
 
 # Warn (don't fail) if the bin dir isn't on PATH yet.
 case ":$PATH:" in
@@ -123,5 +138,23 @@ rmdir "$PROJ_A" "$PROJ_B" 2>/dev/null || true
 tmux kill-session -t "$SESS_B" 2>/dev/null || true
 ([ "$COUNT_A" -eq 4 ] && [ "$COUNT_B" -eq 4 ]) || fail "per-project decks made $COUNT_A/$COUNT_B panes, expected 4/4"
 echo "verify devdeck projects: OK (two dirs -> two 4-pane sessions)"
+
+# 5) vim theme: a headless vim reports the colorscheme as active.
+if [ "$VIM_THEME" -eq 1 ]; then
+    if ! command -v vim >/dev/null; then
+        echo "verify vim theme: SKIPPED (vim not installed)"
+    elif vim -Nu "$HOME/.vimrc" -es -S /dev/stdin >/dev/null 2>&1 <<'VIMTEST'
+set nomore
+if get(g:, 'colors_name', '') !=# 'hacker'
+  cquit 1
+endif
+qa!
+VIMTEST
+    then
+        echo "verify vim theme: OK (colors_name=hacker)"
+    else
+        fail "vim did not load the hacker colorscheme"
+    fi
+fi
 
 echo "all good — re-run ./install.sh after every git pull."

@@ -1,0 +1,40 @@
+HACKER VIM THEME - COPY PASTE INSTALL
+=====================================
+Folder: tmux-scripts/vim-theme
+(part of the tmux-scripts repo, so a clone has it)
+
+1) INSTALL ON THIS MACHINE (no network needed):
+
+cd /path/to/tmux-scripts/vim-theme
+mkdir -p ~/.vim/colors
+cp hacker.vim ~/.vim/colors/hacker.vim
+grep -q "colorscheme hacker" ~/.vimrc 2>/dev/null || cat vimrc >> ~/.vimrc
+
+Or run the installer:
+bash /path/to/tmux-scripts/vim-theme/install.sh
+
+The tmux-scripts installer also does this for you:
+/path/to/tmux-scripts/install.sh
+(add --no-vim-theme to skip it)
+
+2) ONE-LINE INSTALL (other machines):
+
+git clone git@github.com:owenbcoding/tmux-scripts.git ~/code/tmux-scripts
+~/code/tmux-scripts/install.sh
+
+Nothing is fetched from a private URL any more, so no GitHub token needed.
+
+3) CHECK IT WORKED IN VIM:
+
+:colorscheme hacker
+:echo g:colors_name
+" should show: hacker
+
+Or from terminal:
+vim -c 'colorscheme hacker' -c 'echo g:colors_name' -c 'qa!'
+
+4) FILES IN THIS FOLDER:
+- hacker.vim  = the colorscheme (~/.vim/colors/hacker.vim)
+- vimrc       = full reference ~/.vimrc
+- install.sh  = safe installer (backs up ~/.vimrc, appends theme block if missing)
+- README.md   = longer notes

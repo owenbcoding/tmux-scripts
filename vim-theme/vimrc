@@ -1,0 +1,49 @@
+" ~/.vimrc
+
+" --- hacker theme (green-on-black CRT look) ---
+syntax on
+set background=dark
+
+" Use 24-bit colour when the terminal actually advertises it (tmux/iTerm/etc).
+if has('termguicolors') && ($COLORTERM ==# 'truecolor' || $COLORTERM ==# '24bit')
+  set termguicolors
+endif
+
+colorscheme hacker
+
+" --- netrw: suppress the two noisy sort lines in the directory banner ---
+function! s:HackerStripNetrwSortLines() abort
+  if &filetype !=# 'netrw' || !exists('w:netrw_bannercnt')
+    return
+  endif
+  let l:mod = &l:modifiable
+  setlocal modifiable
+  let l:removed = 0
+  for l:lnum in reverse(range(1, min([12, line('$')])))
+    if getline(l:lnum) =~# '^\s*"\s*\(Sorted by\s\|Sort sequence:\)'
+      silent execute l:lnum . 'delete _'
+      let l:removed += 1
+    endif
+  endfor
+  if l:removed > 0
+    let w:netrw_bannercnt = max([1, w:netrw_bannercnt - l:removed])
+    " netrw expects the cursor on the first listing entry (bannercnt); keep it there
+    if line('.') < w:netrw_bannercnt
+      call cursor(w:netrw_bannercnt, 1)
+    endif
+    setlocal nomodified
+  endif
+  let &l:modifiable = l:mod
+endfunction
+
+augroup HackerNetrwBanner
+  autocmd!
+  autocmd BufWinEnter * call s:HackerStripNetrwSortLines()
+  autocmd BufEnter * call s:HackerStripNetrwSortLines()
+  " catch the case where netrw is still building when the events above fire
+  autocmd Syntax netrw call timer_start(0, {-> s:HackerStripNetrwSortLines()})
+augroup END
+
+" --- top banner: one continuous </>OWENCODES across the top ---
+set showtabline=2
+set tabline=%#HackerBannerFill#%=%#HackerBanner#\ \ </>OWENCODES\ \ %#HackerBannerFill#%=
