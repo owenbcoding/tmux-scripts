@@ -7,8 +7,19 @@ Two small bash scripts for tmux:
 | [`split4.sh`](split4.sh) | Turns the current window into a 2×2 grid of four panes. |
 | [`devdeck.sh`](devdeck.sh) | Builds a whole four-zone developer workspace — editor, dev server, logs, git — as its own session. |
 
-Each is a single file. There is no install step, no config, and no dependencies
-beyond bash and tmux.
+Each is a single file with no dependencies beyond bash and tmux. Only devdeck
+reads a config file.
+
+### Install
+
+```bash
+./install.sh              # install devdeck + split4 to ~/.local/bin, then verify each builds 4 panes
+./install.sh --no-verify  # install only
+./install.sh --uninstall  # remove them again
+```
+
+After `git pull` on another machine, re-run `./install.sh` and both commands
+work the same there.
 
 ---
 
@@ -121,7 +132,8 @@ where you start typing.
 
 ## devdeck.sh
 
-Builds and attaches to its own session, `devdeck`, laid out for a full edit /
+Builds and attaches to its own session, `deck-<project>` (one per project
+directory, so two projects get two decks), laid out for a full edit /
 run / watch loop:
 
 ```
@@ -144,7 +156,8 @@ Every pane gets a title, and the border above it shows
 ```bash
 ./devdeck.sh              # use the current directory
 ./devdeck.sh ~/code/app   # open a specific project
-./devdeck.sh --kill       # close the devdeck session
+./devdeck.sh --kill       # close this project's deck
+./devdeck.sh --kill ~/code/app   # close that project's deck
 ```
 
 The directory is resolved to an absolute path before tmux sees it, and the
@@ -152,12 +165,12 @@ script exits with status `1` (printing `devdeck: no such directory: …`) if it
 doesn't exist.
 
 The session is created detached, sized to the terminal you launched from, and
-then attached. If a `devdeck` session already exists the script just goes to it
+then attached. If that project's deck already exists the script just goes to it
 — switching the current client when you're already inside tmux instead of trying
-to nest one — and ignores the directory argument.
+to nest one. Set `DEVDECK_SESSION` to override the session name entirely.
 
-`--kill` closes the session, which is handy from a key binding, and exits with
-status `1` if there's nothing to close.
+`--kill` closes the deck for the given directory (or the current one), which is
+handy from a key binding, and exits with status `1` if there's nothing to close.
 
 ### Requirements
 
@@ -191,15 +204,19 @@ layout and commands match the diagram.
 | Step | Command | Result |
 | ---- | ------- | ------ |
 | 1 | `new-session -d … -x COLS -y LINES` | detached session at your terminal's size, main pane is the editor |
-| 2 | `split-window -h -p 100-EDITOR_WIDTH` | right column, the rest of the width |
-| 3 | `split-window -v -p 66` | dev server on top, 66% left below it |
-| 4 | `split-window -v -p 50` | that remainder becomes the logs and git panes |
-| 5 | `resize-pane -x` (EDITOR_WIDTH% of window) | pins the editor to its width, 65 by default |
+| 2 | `split-window -h` | right column |
+| 3 | `split-window -v` | dev server on top, logs and git below |
+| 4 | `split-window -v` | the third pane in the right column |
+| 5 | `set-option -w main-pane-width` + `select-layout main-vertical` | editor at `EDITOR_WIDTH`% on the left (65 by default), right column split evenly |
 | 6 | `select-pane -T` + `set-option -w` | pane titles and border styling |
 | 7 | `attach` / `switch-client` | hands you the session |
 
-Two details matter for the layout to land where the diagram says:
+Three details matter for the layout to land where the diagram says:
 
+- **Sizes come from the layout, not from the splits.** tmux 3.4's
+  `split-window` takes `-l` but not `-p`, so no percentage is passed to the
+  splits; `main-vertical` with `main-pane-width` is what sets the 65/35 ratio,
+  and it overrides whatever the splits chose.
 - **The session is created at your terminal's size.** Detached sessions default
   to 80×24, so percentage splits computed from one size and applied to another
   produce lopsided panes once you attach.
@@ -218,8 +235,8 @@ Two details matter for the layout to land where the diagram says:
 - tmux shares space added by a terminal resize evenly between panes rather than
   scaling the 65/35 split, so a much wider window drifts from the diagram; drag
   the border to put it back.
-- Re-running attaches to the existing session, so it won't re-tile a layout you
-  have since rearranged.
+- Re-running for the same project attaches to its existing deck, so it won't
+re-tile a layout you have since rearranged.
 
 ### Troubleshooting
 

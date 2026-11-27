@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # devdeck — a beautiful 4-zone developer terminal layout
 # Usage: devdeck [project_dir]
-#        devdeck --kill
-#   Creates a tmux session "devdeck" with:
+#        devdeck --kill [project_dir]
+#   Creates a tmux session "deck-<project>" (one per project directory) with:
 #   ┌───────────────────────┬──────────────┐
 #   │                       │  dev server  │
 #   │       EDITOR          ├──────────────┤
@@ -14,8 +14,37 @@
 # Config: $DEVDECK_CONFIG, or ${XDG_CONFIG_HOME:-~/.config}/devdeck/config,
 # is sourced if it exists. See the README for the variables it can set.
 
-SESSION="devdeck"
 CONFIG="${DEVDECK_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/devdeck/config}"
+
+# --kill closes the deck instead of opening it. An optional directory picks
+# which project's deck to close (default: the current directory).
+KILL=0
+if [ "${1:-}" = "--kill" ]; then
+    KILL=1
+    shift
+fi
+
+# Resolve to an absolute path before tmux sees it: -c is resolved against the
+# tmux server's cwd, not this shell's, so a relative path would silently point
+# at a directory that isn't there.
+cd "${1:-.}" 2>/dev/null || { echo "devdeck: no such directory: ${1:-.}" >&2; exit 1; }
+DIR="$(pwd)"
+
+# One session per project, so `devdeck ~/proj-a` and `devdeck ~/proj-b` give
+# you two decks instead of fighting over one. tmux forbids '.' and ':' in
+# session names, so sanitise the directory basename. DEVDECK_SESSION overrides
+# the name entirely (used by tests and anyone who wants a custom name).
+if [ -n "${DEVDECK_SESSION:-}" ]; then
+    SESSION="$DEVDECK_SESSION"
+else
+    SAFE="$(basename "$DIR")"
+    SAFE="${SAFE//[!a-zA-Z0-9_-]/-}"
+    if [ -z "$SAFE" ]; then
+        SESSION="devdeck"
+    else
+        SESSION="deck-$SAFE"
+    fi
+fi
 
 # Go to the session. From inside tmux, attaching would try to nest a client,
 # so switch the current one instead.
@@ -26,8 +55,7 @@ attach() {
     exec tmux attach -t "$SESSION"
 }
 
-# --kill: close the deck and stop.
-if [ "${1:-}" = "--kill" ]; then
+if [ "$KILL" -eq 1 ]; then
     if tmux has-session -t "$SESSION" 2>/dev/null; then
         tmux kill-session -t "$SESSION" || {
             echo "devdeck: could not close session '$SESSION'" >&2
@@ -40,16 +68,11 @@ if [ "${1:-}" = "--kill" ]; then
     exit 1
 fi
 
-# Already running? Just go to it.
+# This project's deck is already running? Just go to it (and ignore anything
+# else on the command line — the panes and their commands are already up).
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     attach
 fi
-
-# Resolve to an absolute path before tmux sees it: -c is resolved against the
-# tmux server's cwd, not this shell's, so a relative path would silently point
-# at a directory that isn't there.
-cd "${1:-.}" 2>/dev/null || { echo "devdeck: no such directory: ${1:-.}" >&2; exit 1; }
-DIR="$(pwd)"
 
 # Defaults. Anything here can be overridden from the config file; the git line
 # is built after cd so it describes this project, not the caller's directory.
@@ -103,13 +126,16 @@ PANE_EDITOR="$(tmux new-session -d -s "$SESSION" -n dev -c "$DIR" -x "$COLS" -y 
 WINDOW="$(tmux display -p -t "$PANE_EDITOR" '#{window_id}')"
 tmux send-keys -t "$PANE_EDITOR" "$EDITOR_CMD" Enter
 
-# Right column: split off the remainder of the width
-PANE_SERVER="$(tmux split-window -h -t "$PANE_EDITOR" -p "$(( 100 - EDITOR_WIDTH ))" -c "$DIR" -P -F '#{pane_id}')"
+# Note: this tmux (3.4) accepts split-window -l but not -p, so no sizes are
+# passed here. The widths are set by the main-vertical layout call below.
 
-# Split the right column into three equal stacked panes: server on top, then
-# logs and git below.
-PANE_LOGS="$(tmux split-window -v -t "$PANE_SERVER" -p 66 -c "$DIR" -P -F '#{pane_id}')"
-PANE_GIT="$(tmux split-window -v -t "$PANE_LOGS" -p 50 -c "$DIR" -P -F '#{pane_id}')"
+# Right column: split off the remainder of the width
+PANE_SERVER="$(tmux split-window -h -t "$PANE_EDITOR" -c "$DIR" -P -F '#{pane_id}')"
+
+# Split the right column into three stacked panes: server on top, then logs and
+# git below. main-vertical evens them out afterwards.
+PANE_LOGS="$(tmux split-window -v -t "$PANE_SERVER" -c "$DIR" -P -F '#{pane_id}')"
+PANE_GIT="$(tmux split-window -v -t "$PANE_LOGS" -c "$DIR" -P -F '#{pane_id}')"
 
 tmux select-pane -t "$PANE_SERVER" -T "dev server"
 tmux select-pane -t "$PANE_LOGS" -T "logs"
@@ -120,9 +146,11 @@ tmux send-keys -t "$PANE_SERVER" "$SERVER_CMD" Enter
 tmux send-keys -t "$PANE_LOGS" "$LOGS_CMD" Enter
 tmux send-keys -t "$PANE_GIT" "$GIT_CMD" Enter
 
-# Editor pane keeps EDITOR_WIDTH of the width; the right column shares the height.
-WIDTH="$(tmux display -p -t "$WINDOW" '#{window_width}')"
-tmux resize-pane -t "$PANE_EDITOR" -x "$(( WIDTH * EDITOR_WIDTH / 100 ))"
+# Editor keeps EDITOR_WIDTH of the width; the right column shares the height.
+# select-layout overrides any split sizes, so this is the only place the ratio
+# is applied.
+tmux set-option -w -t "$WINDOW" main-pane-width "${EDITOR_WIDTH}%"
+tmux select-layout -t "$WINDOW" main-vertical
 
 # ── Styling ─────────────────────────────────────────────
 tmux set-option -w -t "$WINDOW" pane-border-status top
